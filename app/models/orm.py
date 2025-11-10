@@ -16,7 +16,7 @@ class Project(Base):
     id: Mapped[int] = mapped_column(primary_key=True)
     project_id: Mapped[str] = mapped_column(String(64), unique=True, index=True)
     # anchors/rules/weights (YAML or JSON as text)
-    config_yaml: Mapped[Text]
+    config_yaml: Mapped[str] = mapped_column(Text) 
     created_at: Mapped[DateTime] = mapped_column(DateTime, server_default=func.now())
 
 class Artifact(Base):
@@ -64,7 +64,7 @@ class Rubric(Base):
 
 class Review(Base):
     __tablename__ = "reviews"
-    
+
     id: Mapped[int] = mapped_column(primary_key=True)
     project_id: Mapped[str] = mapped_column(String(64), index=True)
     bundle_id: Mapped[int] = mapped_column(ForeignKey("bundles.id"))
