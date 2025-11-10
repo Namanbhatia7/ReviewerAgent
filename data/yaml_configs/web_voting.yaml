@@ -1,0 +1,163 @@
+project_id: "webapp_voting_v1"
+version: "2025-11-11"
+
+extractors:
+  anchors:
+    header_prompt: ["Prompt", "Task Prompt", "User Prompt"]
+    section_a: ["Side A", "A:", "App A"]
+    section_b: ["Side B", "B:", "App B"]
+    q1: ["Q1", "Q1:"]
+    q2: ["Q2", "Q2:"]
+    q2_prime: ["Q2'", "Q2 (explain)", "Q2 explanation"]
+    q3: ["Q3", "Q3:"]
+    q3_prime: ["Q3'", "Q3 (explain)", "Q3 explanation"]
+    q4: ["Q4", "Q4:"]
+    q4_prime: ["Q4'", "Q4 (explain)", "Q4 explanation"]
+    q5: ["Q5", "Q5:"]
+    q5_prime: ["Q5'", "Q5 (explain)", "Q5 explanation"]
+  heuristics:
+    block_scan_window_px: 1200
+    option_markers: ["•", "-", "[ ]", "[x]", "( )", "(x)"]
+    option_mark_corridor_px: 28
+    baseline_tolerance_px: 6
+    raster_dpi: 260
+
+questions:
+  - id: "q1_rendering"
+    label: "Q1: Is the response rendered properly?"
+    per_side: true
+    options:
+      - raw: "Yes-fully"
+        norm: "yes_fully"
+      - raw: "Yes-partially"
+        norm: "yes_partially"
+      - raw: "No"
+        norm: "no"
+    explanation_required: false
+    anchors: ["q1"]
+
+  - id: "q2_ui_preference"
+    label: "Q2: Which UI do you prefer?"
+    per_side: false
+    options:
+      - raw: "A is much better"
+        norm: "a_much_better"
+      - raw: "A is better"
+        norm: "a_better"
+      - raw: "about the same"
+        norm: "same"
+      - raw: "B is better"
+        norm: "b_better"
+      - raw: "B is much better"
+        norm: "b_much_better"
+      - raw: "both are bad"
+        norm: "both_bad"
+    explanation_required: true
+    explanation_anchor: "q2_prime"
+    guidance:
+      bullets:
+        - "Explain with UI principles: hierarchy, color, typography, layout, consistency."
+        - "Keep it concise and comparative (A vs B)."
+
+  - id: "q3_feature_completeness"
+    label: "Q3: Which side is most feature-complete?"
+    per_side: false
+    options:
+      - raw: "A is better"
+        norm: "a_better"
+      - raw: "B is better"
+        norm: "b_better"
+      - raw: "tie"
+        norm: "tie"
+      - raw: "both are bad"
+        norm: "both_bad"
+    explanation_required: true
+    explanation_anchor: "q3_prime"
+    guidance:
+      bullets:
+        - "Cover: feature coverage, implementation depth, prompt alignment, error handling."
+
+  - id: "q4_functionality"
+    label: "Q4: Which side has better functionality?"
+    per_side: false
+    options:
+      - raw: "A is better"
+        norm: "a_better"
+      - raw: "B is better"
+        norm: "b_better"
+      - raw: "tie"
+        norm: "tie"
+      - raw: "both are bad"
+        norm: "both_bad"
+    explanation_required: true
+    explanation_anchor: "q4_prime"
+    guidance:
+      bullets:
+        - "Cover: ease of use, reliability, efficiency, input & error handling."
+
+  - id: "q5_overall"
+    label: "Q5: Which side is better overall?"
+    per_side: false
+    options:
+      - raw: "A is better"
+        norm: "a_better"
+      - raw: "B is better"
+        norm: "b_better"
+      - raw: "tie"
+        norm: "tie"
+      - raw: "both are bad"
+        norm: "both_bad"
+    explanation_required: true
+    explanation_anchor: "q5_prime"
+    guidance:
+      bullets:
+        - "Provide a comparative summary (UI, features, functionality) tied to prompt."
+
+evaluation:
+  dimensions:
+    - key: adherence
+      label: "Instruction Adherence"
+      weight: 0.30
+      must:
+        - "Respect question granularity (per-side vs comparative)."
+        - "Provide mandatory explanations for Q2', Q3', Q4', Q5'."
+      banned_phrases:
+        - "guarantee"
+        - "100% certain"
+      caps:
+        - if: "missing_mandatory_explanation"
+          max_score: 2.0
+
+    - key: correctness
+      label: "Substantive Correctness"
+      weight: 0.40
+      checks:
+        - "Comparisons reference concrete UI/feature/functionality observations from the sides."
+
+    - key: coverage
+      label: "Coverage"
+      weight: 0.15
+      checks:
+        - "All questions answered; per-side (Q1) includes both A and B; explanation fields populated where required."
+
+    - key: formatting
+      label: "Clarity & Format"
+      weight: 0.15
+      checks:
+        - "Explanations are concise (1–3 sentences), comparative, and easy to follow."
+
+scoring:
+  scale:
+    min: 0
+    max: 5
+    pass_threshold: 4.0
+
+validation:
+  require_all_questions: true
+  require_q2_q3_q4_q5_explanations: true
+  require_q1_both_sides: true
+
+outputs:
+  require_citations: true
+  include_fix_suggestions: true
+  include_uncertainty: true
