@@ -4,6 +4,7 @@ fastapi==0.121.1
 uvicorn[standard]==0.38.0
 pydantic==2.12.4
 pydantic_core==2.41.5
+pydantic-settings==2.12.0
 python-multipart==0.0.20
 
 
@@ -31,6 +32,7 @@ paddlepaddle==3.2.1
 paddleocr==3.3.1
 layoutparser==0.3.4
 opencv-python-headless==4.12.0.88
+pyyaml==6.0.2
 
 
 # Search, Networking & Retry
