@@ -141,44 +141,31 @@ def get_bundle(bundle_id: int, db: Session = Depends(get_db)):
 
 @router.post("/{bundle_id}/extract", response_model=BundleOut)
 def run_extraction(bundle_id: int, db: Session = Depends(get_db)):
-    row = db.query(Bundle).filter(Bundle.id == bundle_id).first()
-    if not row:
+    bundle = db.query(Bundle).filter(Bundle.id == bundle_id).first()
+    if not bundle:
         raise HTTPException(status_code=404, detail="Bundle not found")
-    project = _ensure_project(db, row.project_id)
 
-    path = Path(row.artifact.path)
-    if not path.exists():
-        raise HTTPException(status_code=410, detail="Artifact file missing on disk")
+    project_id = bundle.project_id
+    pdf_path = bundle.artifact.path
+    pdf_bytes = Path(pdf_path).read_bytes()
 
-    pdf_bytes = path.read_bytes()
+    status, mean_conf, payload = extract_pdf(db, project_id, pdf_bytes)
 
-    # REAL extraction
-    try:
-        from app.services.ingest_pdf.extractor import extract_pdf
-        status, mean_ocr_conf, payload = extract_pdf(db, row.project_id, pdf_bytes)
-    except Exception as e:
-        # persist failure in payload so GET can inspect
-        failed = ExtractedPayload(status="failed", notes={"error": str(e)})
-        row.extracted_json = failed.model_dump()
-        db.commit(); db.refresh(row)
-        raise HTTPException(status_code=500, detail=f"Extraction failed: {e}")
-
-    # Persist results
-    row.ocr_conf = float(mean_ocr_conf or 0.0)
-    row.extracted_json = payload.model_dump()
-    row.dpi = 0 if payload.notes.get("mean_ocr_conf") is None else project and 0  # optional
-    db.commit(); db.refresh(row)
+    bundle.extracted_json = payload
+    bundle.ocr_conf = mean_conf
+    db.commit()
+    db.refresh(bundle)
 
     return BundleOut(
-        bundle_id=row.id,
-        project_id=row.project_id,
-        artifact_path=row.artifact.path,
-        file_sha256=row.file_sha256,
-        pages=row.pages,
-        vector_text=row.vector_text,
-        dpi=row.dpi,
-        ocr_conf=row.ocr_conf,
-        created_at=row.created_at,
+        bundle_id=bundle.id,
+        project_id=bundle.project_id,
+        artifact_path=bundle.artifact.path,
+        file_sha256=bundle.file_sha256,
+        pages=bundle.pages,
+        vector_text=False,
+        dpi=0,
+        ocr_conf=mean_conf,
+        created_at=bundle.created_at,
         duplicate=False,
         extracted=payload,
     )
