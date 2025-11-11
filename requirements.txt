@@ -44,6 +44,9 @@ whoosh==2.7.4  # add version if installed
 # LLM, AI & Search Integration
 langchain==1.0.5
 langchain-core==1.0.4
+langchain-community==0.4.1
+langchain-text-splitters==1.0.0
+langsmith==0.4.42
 langchain-openai==1.0.2
 langgraph==1.0.2
 langgraph-checkpoint==3.0.1
