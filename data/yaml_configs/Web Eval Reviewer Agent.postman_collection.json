@@ -1,0 +1,113 @@
+{
+	"info": {
+		"_postman_id": "f51eb18b-fc9d-4ac2-b760-ba39a6138f3c",
+		"name": "Web Eval Reviewer Agent",
+		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+		"_exporter_id": "46700972",
+		"_collection_link": "https://namanbhatia-6482560.postman.co/workspace/Naman-Bhatia's-Workspace~e7d37b6d-8e3a-4d08-8213-03d2bcddb19c/collection/46700972-f51eb18b-fc9d-4ac2-b760-ba39a6138f3c?action=share&source=collection_link&creator=46700972"
+	},
+	"item": [
+		{
+			"name": "Create Project",
+			"request": {
+				"method": "POST",
+				"header": [],
+				"body": {
+					"mode": "formdata",
+					"formdata": [
+						{
+							"key": "project_id",
+							"value": "webapp_voting_v1",
+							"type": "text"
+						},
+						{
+							"key": "file",
+							"type": "file",
+							"src": "/Users/naman/Documents/Personal/ReviewerAgent/data/yaml_configs/web_voting.yaml"
+						}
+					]
+				},
+				"url": {
+					"raw": "{{base_url}}/projects",
+					"host": [
+						"{{base_url}}"
+					],
+					"path": [
+						"projects"
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "Update Project",
+			"request": {
+				"method": "PUT",
+				"header": [],
+				"body": {
+					"mode": "formdata",
+					"formdata": [
+						{
+							"key": "file",
+							"type": "file",
+							"src": "config_v2.yaml"
+						}
+					]
+				},
+				"url": {
+					"raw": "{{base_url}}/projects/webapp_voting_v1",
+					"host": [
+						"{{base_url}}"
+					],
+					"path": [
+						"projects",
+						"webapp_voting_v1"
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "Get Project",
+			"request": {
+				"method": "GET",
+				"header": [],
+				"url": {
+					"raw": "{{base_url}}/projects/webapp_voting_v1",
+					"host": [
+						"{{base_url}}"
+					],
+					"path": [
+						"projects",
+						"webapp_voting_v1"
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "List Projects",
+			"request": {
+				"method": "GET",
+				"header": [],
+				"url": {
+					"raw": "{{base_url}}/projects",
+					"host": [
+						"{{base_url}}"
+					],
+					"path": [
+						"projects"
+					]
+				}
+			},
+			"response": []
+		}
+	],
+	"variable": [
+		{
+			"key": "base_url",
+			"value": "",
+			"type": "default"
+		}
+	]
+}

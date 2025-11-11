@@ -1,1 +1,3 @@
-Run alembic upgrade head
+pip install -r requirements.txt
+
+alembic upgrade head
