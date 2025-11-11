@@ -144,22 +144,30 @@ def run_extraction(bundle_id: int, db: Session = Depends(get_db)):
     row = db.query(Bundle).filter(Bundle.id == bundle_id).first()
     if not row:
         raise HTTPException(status_code=404, detail="Bundle not found")
+    project = _ensure_project(db, row.project_id)
 
-    # Read file bytes from disk (local FS in POC)
     path = Path(row.artifact.path)
     if not path.exists():
         raise HTTPException(status_code=410, detail="Artifact file missing on disk")
 
     pdf_bytes = path.read_bytes()
-    # Minimal extraction (wire in anchors & OCR later)
-    payload, dpi, ocr_conf = extract_minimal(pdf_bytes, vector_text=row.vector_text)
+
+    # REAL extraction
+    try:
+        from app.services.ingest_pdf.extractor import extract_pdf
+        status, mean_ocr_conf, payload = extract_pdf(db, row.project_id, pdf_bytes)
+    except Exception as e:
+        # persist failure in payload so GET can inspect
+        failed = ExtractedPayload(status="failed", notes={"error": str(e)})
+        row.extracted_json = failed.model_dump()
+        db.commit(); db.refresh(row)
+        raise HTTPException(status_code=500, detail=f"Extraction failed: {e}")
 
     # Persist results
-    row.dpi = dpi
-    row.ocr_conf = ocr_conf
+    row.ocr_conf = float(mean_ocr_conf or 0.0)
     row.extracted_json = payload.model_dump()
-    db.commit()
-    db.refresh(row)
+    row.dpi = 0 if payload.notes.get("mean_ocr_conf") is None else project and 0  # optional
+    db.commit(); db.refresh(row)
 
     return BundleOut(
         bundle_id=row.id,

@@ -1,9 +1,15 @@
 # app/services/ingest_pdf/extractor.py
 from __future__ import annotations
-from typing import Tuple, Optional
+from typing import Tuple
 from dataclasses import dataclass
 import fitz  # PyMuPDF
-from app.models.schemas import ExtractedPayload, TextField
+
+from sqlalchemy.orm import Session
+from app.models.orm import Project
+from app.services.ingest_pdf.anchors import load_project_config
+from app.services.ingest_pdf.vector import extract_words, to_lines
+from app.services.ingest_pdf.raster import ocr_pdf, lines_from_words
+from app.services.ingest_pdf.extractor_logic import assemble_payload
 
 @dataclass
 class PDFPreflight:
@@ -19,24 +25,32 @@ def preflight_pdf(pdf_bytes: bytes) -> PDFPreflight:
     finally:
         doc.close()
 
-def extract_minimal(pdf_bytes: bytes, *, vector_text: bool) -> Tuple[ExtractedPayload, int, float]:
+def extract_pdf(db: Session, project_id: str, pdf_bytes: bytes) -> Tuple[str, float, object]:
     """
     Returns:
-      payload (ExtractedPayload), dpi (int), ocr_conf (float)
-    Notes:
-      - Minimal impl: does not OCR; sets placeholders.
-      - We'll fill real fields after you wire anchors + OCR pipeline.
+      status: "extracted"
+      mean_ocr_conf: float
+      payload: ExtractedPayload
     """
-    # Minimal payload: status + empty fields to satisfy schema
-    payload = ExtractedPayload(
-        status="extracted_minimal",
-        prompt=TextField(text=""),
-        questions=[],
-        rating=None,
-        explanation=TextField(text=""),
-        page_instructions=None,
-        notes={"vector_text": vector_text}
-    )
-    dpi = 0
-    ocr_conf = 0.0
-    return payload, dpi, ocr_conf
+    # Load project anchors + heuristics + question schema
+    proj = db.query(Project).filter(Project.project_id == project_id).first()
+    if not proj:
+        raise ValueError(f"Project '{project_id}' not found")
+    cfg = load_project_config(proj.config_yaml)
+
+    pf = preflight_pdf(pdf_bytes)
+    mean_ocr_conf = 0.0
+
+    if pf.vector_text:
+        # VECTOR PATH
+        words = extract_words(pdf_bytes)
+        lines = to_lines(words, y_tol=3.0)
+        payload = assemble_payload(lines, cfg, mean_ocr_conf=None)
+        return payload.status, 0.0, payload
+    else:
+        # RASTER PATH
+        ocr_res = ocr_pdf(pdf_bytes, dpi=cfg.heuristics.raster_dpi)
+        mean_ocr_conf = ocr_res.mean_conf
+        lines = lines_from_words(ocr_res.words, y_tol=4.0)
+        payload = assemble_payload(lines, cfg, mean_ocr_conf=mean_ocr_conf)
+        return payload.status, mean_ocr_conf, payload
