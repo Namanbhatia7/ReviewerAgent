@@ -1,0 +1,173 @@
+project_id: "webapp_voting_v1"
+version: "2025-11-11-raster"
+
+extractors:
+  anchors:
+    # Right-panel question titles (as shown in the screenshots)
+    q1: ["Question 1 of 6", "Rendering Quality"]
+    q2: ["Question 2 of 6", "CUJ Quality Assessment"]
+    q2_prime: ["Please explain your rating", "Explain your rating"]
+    q3: ["Question 3 of 6", "Overall UI Rating"]
+    q4: ["Question 4 of 6", "Core Feature Completeness Based on CUJ"]
+    q5: ["Question 5 of 6", "Overall Functionality"]
+    q5_prime: ["Please explain your functionality rating"]
+    q6: ["Question 6 of 6", "Overall Satisfaction"]
+    q6_prime: ["Please briefly explain your overall satisfaction", "Please briefly explain"]
+  heuristics:
+    raster_dpi: 300                 # screenshots → a little higher DPI helps OCR
+    block_scan_window_px: 1800      # bigger block capture under each question
+    option_mark_corridor_px: 36     # radios are a bit farther from labels
+    baseline_tolerance_px: 6
+    option_markers:
+      - "•"
+      - "-"
+      - "[ ]"
+      - "[x]"
+      - "( )"
+      - "(x)"
+      - "○"
+      - "●"
+      - "◯"
+      - "⦿"
+  layout:
+    two_columns: true
+    # Split the page to left (preview) / right (questions).
+    # Keep only right side lines for anchors/blocks.
+    right_panel_min_x_ratio: 0.55   # ignore content left of 55% page width
+
+questions:
+  - id: "q1_rendering"
+    label: "Rendering Quality"
+    per_side: false
+    options:
+      - raw: "No"
+        norm: "no"
+      - raw: "Yes-partially"
+        norm: "yes_partially"
+      - raw: "Yes-fully"
+        norm: "yes_fully"
+    explanation_required: false
+    anchors: ["q1"]
+
+  - id: "q2_cuj_quality"
+    label: "CUJ Quality Assessment"
+    per_side: false
+    options:
+      - raw: "Significant Issues"
+        norm: "significant_issues"
+      - raw: "Minor Issues"
+        norm: "minor_issues"
+      - raw: "Clear and Complete"
+        norm: "clear_complete"
+    explanation_required: true
+    explanation_anchor: "q2_prime"
+    anchors: ["q2"]
+
+  - id: "q3_ui_rating"
+    label: "Overall UI Rating"
+    per_side: false
+    options:
+      - raw: "Very Poor"
+        norm: "very_poor"
+      - raw: "Poor"
+        norm: "poor"
+      - raw: "Fair"
+        norm: "fair"
+      - raw: "Good"
+        norm: "good"
+      - raw: "Excellent"
+        norm: "excellent"
+    explanation_required: false
+    anchors: ["q3"]
+
+  - id: "q4_feature_completeness"
+    label: "Core Feature Completeness Based on CUJ"
+    per_side: false
+    options:
+      - raw: "Very Incomplete"
+        norm: "very_incomplete"
+      - raw: "Incomplete"
+        norm: "incomplete"
+      - raw: "Partially Complete"
+        norm: "partially_complete"
+      - raw: "Mostly Complete"
+        norm: "mostly_complete"
+      - raw: "Complete"
+        norm: "complete"
+    explanation_required: false
+    anchors: ["q4"]
+
+  - id: "q5_functionality"
+    label: "Overall Functionality"
+    per_side: false
+    options:
+      - raw: "Very Poor"
+        norm: "very_poor"
+      - raw: "Poor"
+        norm: "poor"
+      - raw: "Fair"
+        norm: "fair"
+      - raw: "Good"
+        norm: "good"
+      - raw: "Excellent"
+        norm: "excellent"
+    explanation_required: true
+    explanation_anchor: "q5_prime"
+    anchors: ["q5"]
+
+  - id: "q6_overall_satisfaction"
+    label: "Overall Satisfaction"
+    per_side: false
+    options:
+      - raw: "Very Dissatisfied"
+        norm: "very_dissatisfied"
+      - raw: "Dissatisfied"
+        norm: "dissatisfied"
+      - raw: "Neutral"
+        norm: "neutral"
+      - raw: "Satisfied"
+        norm: "satisfied"
+      - raw: "Very Satisfied"
+        norm: "very_satisfied"
+    explanation_required: true
+    explanation_anchor: "q6_prime"
+    anchors: ["q6"]
+
+evaluation:
+  dimensions:
+    - key: adherence
+      label: "Instruction Adherence"
+      weight: 0.30
+      must:
+        - "Answer all six questions"
+        - "Provide explanations where required (Q2, Q5, Q6)"
+      caps:
+        - if: "missing_mandatory_explanation"
+          max_score: 2.0
+
+    - key: correctness
+      label: "Substantive Correctness"
+      weight: 0.40
+
+    - key: coverage
+      label: "Coverage"
+      weight: 0.15
+
+    - key: formatting
+      label: "Clarity & Format"
+      weight: 0.15
+
+scoring:
+  scale:
+    min: 0
+    max: 5
+    pass_threshold: 4.0
+
+validation:
+  require_all_questions: true
+  require_q2_q5_q6_explanations: true
+
+outputs:
+  require_citations: true
+  include_fix_suggestions: true
+  include_uncertainty: true

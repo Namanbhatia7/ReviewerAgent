@@ -41,16 +41,20 @@ def extract_pdf(db: Session, project_id: str, pdf_bytes: bytes) -> Tuple[str, fl
     pf = preflight_pdf(pdf_bytes)
     mean_ocr_conf = 0.0
 
-    if pf.vector_text:
-        # VECTOR PATH
-        words = extract_words(pdf_bytes)
-        lines = to_lines(words, y_tol=3.0)
-        payload = assemble_payload(lines, cfg, mean_ocr_conf=None)
-        return payload.status, 0.0, payload
-    else:
-        # RASTER PATH
+    try:
         ocr_res = ocr_pdf(pdf_bytes, dpi=cfg.heuristics.raster_dpi)
         mean_ocr_conf = ocr_res.mean_conf
+        from app.services.ingest_pdf.raster import lines_from_words
         lines = lines_from_words(ocr_res.words, y_tol=4.0)
-        payload = assemble_payload(lines, cfg, mean_ocr_conf=mean_ocr_conf)
-        return payload.status, mean_ocr_conf, payload
+    except Exception as e:
+        # Fallback to vector if OCR fails
+        words = extract_words(pdf_bytes)
+        lines = to_lines(words, y_tol=3.0)
+        mean_ocr_conf = 0.0
+
+    # (new) restrict to right panel if configured
+    from app.services.ingest_pdf.layout import filter_right_panel
+    lines = filter_right_panel(lines, min_x_ratio=getattr(cfg, "layout", {}).get("right_panel_min_x_ratio", None))
+
+    payload = assemble_payload(lines, cfg, mean_ocr_conf=mean_ocr_conf)
+    return payload.status, mean_ocr_conf, payload

@@ -8,26 +8,23 @@ from app.services.ingest_pdf.vector import Word, Line, _finalize_line
 class OCRResult:
     words: List[Word]
     mean_conf: float
+    page_images: List["np.ndarray"]  # NEW
 
-def ocr_pdf(pdf_bytes: bytes, dpi: int = 260) -> OCRResult:
+def ocr_pdf(pdf_bytes: bytes, dpi: int = 300) -> OCRResult:
     try:
         from pdf2image import convert_from_bytes
         from paddleocr import PaddleOCR
         import numpy as np
     except Exception as e:
-        raise RuntimeError(
-            "Raster OCR unavailable (import failed). "
-            "Verify paddleocr==3.3.1, paddlepaddle==3.2.1, pdf2image==1.17.0, pillow==12.0.0."
-        ) from e
+        raise RuntimeError("Raster OCR unavailable") from e
 
     images = convert_from_bytes(pdf_bytes, dpi=dpi)
+    page_arrays = [__import__("numpy").array(img) for img in images]
+
     ocr = PaddleOCR(lang="en", show_log=False)
     words: List[Word] = []
-    confs = []
-
-    for idx, img in enumerate(images):
-        page_no = idx + 1
-        arr = np.array(img)
+    confidences = []
+    for page_no, arr in enumerate(page_arrays, start=1):
         res = ocr.ocr(arr, cls=True)
         for block in res:
             for item in block:
@@ -38,13 +35,12 @@ def ocr_pdf(pdf_bytes: bytes, dpi: int = 260) -> OCRResult:
                 x0 = min(x1,x2,x3,x4); y0 = min(y1,y2,y3,y4)
                 x1m = max(x1,x2,x3,x4); y1m = max(y1,y2,y3,y4)
                 words.append(Word(page=page_no, text=str(text), bbox=(float(x0), float(y0), float(x1m), float(y1m))))
-                try:
-                    confs.append(float(conf))
-                except Exception:
-                    pass
+                try: confidences.append(float(conf))
+                except: pass
 
-    mean_conf = float(sum(confs)/len(confs)) if confs else 0.0
-    return OCRResult(words=words, mean_conf=mean_conf)
+    mean_conf = float(sum(confidences)/len(confidences)) if confidences else 0.0
+    return OCRResult(words=words, mean_conf=mean_conf, page_images=page_arrays)
+
 
 def lines_from_words(words: List[Word], y_tol: float = 4.0) -> List[Line]:
     # reuse _finalize_line and grouping similar to vector

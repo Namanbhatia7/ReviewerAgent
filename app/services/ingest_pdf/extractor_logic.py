@@ -48,34 +48,124 @@ def lines_to_text_and_bbox(blines: List[Line]) -> Tuple[str, Optional[Tuple[int,
     x1 = max(ln.bbox[2] for ln in blines); y1 = max(ln.bbox[3] for ln in blines)
     return text, (page, x0, y0, x1 - x0, y1 - y0)
 
-def parse_options(block_text: str, opt_markers: List[str], schema_opts: List[Dict[str,Any]]) -> List[Option]:
-    # Prefer matching normalized "raw" option texts in the block lines
+
+def parse_options(block_text: str, opt_markers: List[str], schema_opts: List[Dict[str, Any]]) -> List[Option]:
+    """
+    Parse options and infer selection for screenshot-style (raster) PDFs.
+
+    Heuristics:
+    - Detect selection glyphs on the same line as the option text: [x], (x), ✓, ✔, ●, ⦿
+    - Treat unselected glyphs: [ ], ( ), ○, ◯, ◌, ⭘
+    - Support explicit lines like "Selected: <option>", "Your answer: <option>", "Choice: <option>"
+    - Resolve multiple positives by keeping the highest-confidence candidate.
+    """
+    # 1) Prep
     options: List[Option] = []
     lines = [l.strip() for l in block_text.splitlines() if l.strip()]
-    raw_map = [ (o["raw"], o.get("norm")) for o in schema_opts ]
+    # normalized parallel list for matching
+    norm_lines = [ _norm(l) for l in lines ]
+
+    # Selected/Unselected glyphs (expandable)
+    SEL_GLYPHS = {"[x]", "(x)", "✓", "✔", "●", "⦿", "◉", "•"}   # '•' only counts if adjacent to the option text
+    UNS_GLYPHS = {"[ ]", "( )", "○", "◯", "◌", "⭘"}
+
+    # Phrases that explicitly state the chosen option
+    EXPLICIT_PATTERNS = [
+        r"(?:selected|your\s*answer|choice)\s*[:\-]\s*(.+)$",
+        r"(?:answer)\s*[:\-]\s*(.+)$"
+    ]
+
+    # Helper: bounded window check for glyphs around an occurrence of raw option text
+    def _line_has_selected_mark(line: str, raw: str) -> float:
+        # search for raw inside line; if found, look ±8 chars for glyphs
+        low = _norm(line); raw_low = _norm(raw)
+        if raw_low not in low:
+            return 0.0
+        idx = low.find(raw_low)
+        window = low[max(0, idx - 8): idx] + low[idx + len(raw_low): idx + len(raw_low) + 8]
+        # confidence tiers
+        if any(g.lower() in window for g in [s.lower() for s in SEL_GLYPHS if s not in {"•"}]):
+            return 0.9
+        # '•' is noisy in OCR; give smaller weight unless explicitly near text
+        if "•" in window:
+            return 0.6
+        # textual hints on same line
+        if " selected" in low or " (selected" in low or low.startswith("selected:"):
+            return 0.9
+        return 0.0
+
+    # 2) Initial pass: create Option objects and look for line-level matches
+    raw_map = [(o["raw"], o.get("norm")) for o in schema_opts]
     for raw, norm in raw_map:
-        selected = False
-        conf = 0.0
-        # detect “[x] raw”, “(x) raw”, “raw [x]” etc.
-        for ln in lines:
-            ln_low = _norm(ln)
+        best_conf = 0.0
+        # scan lines for this option
+        for orig, low in zip(lines, norm_lines):
             raw_low = _norm(raw)
-            if raw_low in ln_low:
-                # look for a marker indicating selection
-                if any(m.lower() in ln_low for m in ["[x]", "(x)", "selected", "✓"]):
-                    selected = True; conf = 0.9
-                break
-        options.append(Option(text=raw, selected=selected, selection_confidence=conf))
-    # if none selected, try heuristic: a single line like "Selected: …"
+            if raw_low in low:
+                conf = _line_has_selected_mark(orig, raw)
+                # If explicit "[ ]" near it and no positive mark, downweight slightly
+                if conf == 0.0 and any(m in low for m in [u.lower() for u in UNS_GLYPHS]):
+                    conf = max(conf, 0.1)
+                best_conf = max(best_conf, conf)
+        options.append(Option(text=raw, selected=(best_conf >= 0.5), selection_confidence=best_conf))
+
+    # 3) If none selected yet, look for explicit "Selected: <option>" style lines
     if not any(o.selected for o in options):
-        for ln in lines:
-            m = re.search(r"selected\s*:\s*(.+)$", ln, flags=re.I)
-            if m:
-                chosen = _norm(m.group(1))
-                for o in options:
-                    if _norm(o.text) in chosen or chosen in _norm(o.text):
-                        o.selected = True; o.selection_confidence = max(o.selection_confidence, 0.9)
+        chosen_norm = None
+        for low in norm_lines:
+            for pat in EXPLICIT_PATTERNS:
+                m = re.search(pat, low, flags=re.I)
+                if m:
+                    chosen_norm = _norm(m.group(1))
+                    break
+            if chosen_norm:
                 break
+        if chosen_norm:
+            for o in options:
+                if _norm(o.text) in chosen_norm or chosen_norm in _norm(o.text):
+                    o.selected = True
+                    o.selection_confidence = max(o.selection_confidence, 0.95)
+
+    # 4) If still none, last resort: look for a single line that lists options with a bracket
+    #    e.g., "(x) Good  ( ) Excellent  ( ) Fair"
+    if not any(o.selected for o in options):
+        for orig, low in zip(lines, norm_lines):
+            # favor any line that contains both a selected and unselected marker
+            if any(s in low for s in [s.lower() for s in SEL_GLYPHS]) and any(u in low for u in [u.lower() for u in UNS_GLYPHS]):
+                # pick the option whose text occurs closest to a selected glyph
+                sel_positions = []
+                for g in SEL_GLYPHS:
+                    gi = low.find(g.lower())
+                    if gi >= 0:
+                        sel_positions.append(gi)
+                if sel_positions:
+                    selected_idx = min(sel_positions)
+                    # choose an option whose occurrence index is nearest to the selected glyph
+                    best = None; best_dist = 1e9
+                    for o in options:
+                        oi = low.find(_norm(o.text))
+                        if oi >= 0:
+                            dist = abs(oi - selected_idx)
+                            if dist < best_dist:
+                                best = o; best_dist = dist
+                    if best:
+                        best.selected = True
+                        best.selection_confidence = max(best.selection_confidence, 0.8)
+                        break
+
+    # 5) Enforce single-select radio behavior: keep the highest-confidence selection
+    selected_opts = [o for o in options if o.selected]
+    if len(selected_opts) > 1:
+        best = max(selected_opts, key=lambda x: x.selection_confidence)
+        for o in options:
+            o.selected = (o is best)
+            o.selection_confidence = o.selection_confidence if o is best else min(o.selection_confidence, 0.2)
+
+    # 6) Clip confidence to [0,1] and return
+    for o in options:
+        if o.selection_confidence < 0.0: o.selection_confidence = 0.0
+        if o.selection_confidence > 1.0: o.selection_confidence = 1.0
+
     return options
 
 def parse_rating(block_text: str) -> Optional[Rating]:
