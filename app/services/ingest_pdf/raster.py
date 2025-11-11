@@ -1,10 +1,7 @@
 # app/services/ingest_pdf/raster.py
 from __future__ import annotations
 from dataclasses import dataclass
-from typing import List, Tuple
-from pdf2image import convert_from_bytes
-from paddleocr import PaddleOCR
-
+from typing import List
 from app.services.ingest_pdf.vector import Word, Line, _finalize_line
 
 @dataclass
@@ -13,28 +10,40 @@ class OCRResult:
     mean_conf: float
 
 def ocr_pdf(pdf_bytes: bytes, dpi: int = 260) -> OCRResult:
+    try:
+        from pdf2image import convert_from_bytes
+        from paddleocr import PaddleOCR
+        import numpy as np
+    except Exception as e:
+        raise RuntimeError(
+            "Raster OCR unavailable (import failed). "
+            "Verify paddleocr==3.3.1, paddlepaddle==3.2.1, pdf2image==1.17.0, pillow==12.0.0."
+        ) from e
+
     images = convert_from_bytes(pdf_bytes, dpi=dpi)
     ocr = PaddleOCR(lang="en", show_log=False)
     words: List[Word] = []
-    confidences = []
+    confs = []
+
     for idx, img in enumerate(images):
         page_no = idx + 1
-        # PaddleOCR expects path or numpy array; convert PIL to np.array
-        import numpy as np
         arr = np.array(img)
         res = ocr.ocr(arr, cls=True)
-        # res is list[ [ (bbox, (text, conf)), ... ] ]
         for block in res:
             for item in block:
                 (x1,y1),(x2,y2),(x3,y3),(x4,y4) = item[0]
                 text, conf = item[1]
-                if not text or text.isspace():
+                if not text or str(text).isspace():
                     continue
                 x0 = min(x1,x2,x3,x4); y0 = min(y1,y2,y3,y4)
                 x1m = max(x1,x2,x3,x4); y1m = max(y1,y2,y3,y4)
                 words.append(Word(page=page_no, text=str(text), bbox=(float(x0), float(y0), float(x1m), float(y1m))))
-                confidences.append(float(conf))
-    mean_conf = float(sum(confidences)/len(confidences)) if confidences else 0.0
+                try:
+                    confs.append(float(conf))
+                except Exception:
+                    pass
+
+    mean_conf = float(sum(confs)/len(confs)) if confs else 0.0
     return OCRResult(words=words, mean_conf=mean_conf)
 
 def lines_from_words(words: List[Word], y_tol: float = 4.0) -> List[Line]:
