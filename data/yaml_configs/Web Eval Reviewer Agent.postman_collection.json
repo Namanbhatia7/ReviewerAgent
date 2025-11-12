@@ -8,99 +8,185 @@
 	},
 	"item": [
 		{
-			"name": "Create Project",
-			"request": {
-				"method": "POST",
-				"header": [],
-				"body": {
-					"mode": "formdata",
-					"formdata": [
-						{
-							"key": "project_id",
-							"value": "webapp_voting_v1",
-							"type": "text"
+			"name": "Bundle",
+			"item": [
+				{
+					"name": "Upload PDF",
+					"request": {
+						"method": "POST",
+						"header": [],
+						"body": {
+							"mode": "formdata",
+							"formdata": [
+								{
+									"key": "project_id",
+									"value": "webapp_voting_v1",
+									"type": "text"
+								},
+								{
+									"key": "file",
+									"type": "file",
+									"src": "sample_task.pdf"
+								}
+							]
 						},
-						{
-							"key": "file",
-							"type": "file",
-							"src": "/Users/naman/Documents/Personal/ReviewerAgent/data/yaml_configs/web_voting.yaml"
+						"url": {
+							"raw": "http://localhost:8080/bundles/pdf",
+							"protocol": "http",
+							"host": [
+								"localhost"
+							],
+							"port": "8080",
+							"path": [
+								"bundles",
+								"pdf"
+							]
 						}
-					]
+					},
+					"response": []
 				},
-				"url": {
-					"raw": "{{base_url}}/projects",
-					"host": [
-						"{{base_url}}"
-					],
-					"path": [
-						"projects"
-					]
-				}
-			},
-			"response": []
-		},
-		{
-			"name": "Update Project",
-			"request": {
-				"method": "PUT",
-				"header": [],
-				"body": {
-					"mode": "formdata",
-					"formdata": [
-						{
-							"key": "file",
-							"type": "file",
-							"src": "config_v2.yaml"
+				{
+					"name": "Run extractor",
+					"request": {
+						"method": "POST",
+						"header": [],
+						"url": {
+							"raw": "http://localhost:8080/bundles/<BUNDLE_ID>/extract",
+							"protocol": "http",
+							"host": [
+								"localhost"
+							],
+							"port": "8080",
+							"path": [
+								"bundles",
+								"<BUNDLE_ID>",
+								"extract"
+							]
 						}
-					]
+					},
+					"response": []
 				},
-				"url": {
-					"raw": "{{base_url}}/projects/webapp_voting_v1",
-					"host": [
-						"{{base_url}}"
-					],
-					"path": [
-						"projects",
-						"webapp_voting_v1"
-					]
+				{
+					"name": "Inspect extractor payload",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "http://localhost:8080/bundles/<BUNDLE_ID>",
+							"protocol": "http",
+							"host": [
+								"localhost"
+							],
+							"port": "8080",
+							"path": [
+								"bundles",
+								"<BUNDLE_ID>"
+							]
+						}
+					},
+					"response": []
 				}
-			},
-			"response": []
+			]
 		},
 		{
-			"name": "Get Project",
-			"request": {
-				"method": "GET",
-				"header": [],
-				"url": {
-					"raw": "{{base_url}}/projects/webapp_voting_v1",
-					"host": [
-						"{{base_url}}"
-					],
-					"path": [
-						"projects",
-						"webapp_voting_v1"
-					]
+			"name": "Project",
+			"item": [
+				{
+					"name": "Create Project",
+					"request": {
+						"method": "POST",
+						"header": [],
+						"body": {
+							"mode": "formdata",
+							"formdata": [
+								{
+									"key": "project_id",
+									"value": "webapp_voting_v1",
+									"type": "text"
+								},
+								{
+									"key": "file",
+									"type": "file",
+									"src": "/Users/naman/Documents/Personal/ReviewerAgent/data/yaml_configs/web_voting.yaml"
+								}
+							]
+						},
+						"url": {
+							"raw": "{{base_url}}/projects",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"projects"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Update Project",
+					"request": {
+						"method": "PUT",
+						"header": [],
+						"body": {
+							"mode": "formdata",
+							"formdata": [
+								{
+									"key": "file",
+									"type": "file",
+									"src": "config_v2.yaml"
+								}
+							]
+						},
+						"url": {
+							"raw": "{{base_url}}/projects/webapp_voting_v1",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"projects",
+								"webapp_voting_v1"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Get Project",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/projects/webapp_voting_v1",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"projects",
+								"webapp_voting_v1"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "List Projects",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/projects",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"projects"
+							]
+						}
+					},
+					"response": []
 				}
-			},
-			"response": []
-		},
-		{
-			"name": "List Projects",
-			"request": {
-				"method": "GET",
-				"header": [],
-				"url": {
-					"raw": "{{base_url}}/projects",
-					"host": [
-						"{{base_url}}"
-					],
-					"path": [
-						"projects"
-					]
-				}
-			},
-			"response": []
+			]
 		}
 	],
 	"variable": [

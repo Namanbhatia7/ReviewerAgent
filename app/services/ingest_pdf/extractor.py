@@ -10,6 +10,7 @@ from sqlalchemy.orm import Session
 from app.models.orm import Project
 
 # EasyOCR path (already in your raster.py)
+from app.services.ingest_pdf.cv_radios import radio_selected_near_label
 from app.services.ingest_pdf.raster import ocr_pdf, lines_from_words
 from app.services.ingest_pdf.vector import Word, Line  # types only
 
@@ -329,12 +330,16 @@ def _parse_options_from_block(
     blk_lines: Optional[List[Line]] = None,
     page_img: Optional["np.ndarray"] = None,
     page_no: Optional[int] = None,
+    # CV radio detector knobs (will default; can override from YAML heuristics)
     corridor_px: int = 28,
     search_left_px: int = 140,
+    radio_search_up_px: Optional[int] = None,
+    radio_search_pad_px: Optional[int] = None,
+    allow_multi: bool = False,
 ) -> List[Dict[str, Any]]:
     """
-    Map schema options to block lines (fuzzy).
-    If a page image + block lines are provided, look left of the matched line for a filled radio dot.
+    Map schema options to block lines (fuzzy) and, if possible, detect a selected radio
+    using cv_radios.radio_selected_near_label() near the matched line.
     """
     options: List[Dict[str, Any]] = []
     if not schema_opts:
@@ -374,35 +379,44 @@ def _parse_options_from_block(
                         selected = True
                         conf = max(conf, 0.9)
 
-        # 3) visual radio detection near the matched line
+        # 3) visual radio detection with your cv_radios
+        #    We look around the OCR line bbox that matched the option text.
         if (not selected) and (best_i >= 0) and blk_lines is not None and page_img is not None:
-            # best_i is within the block_text; map to actual Line in blk_lines with same index
-            if 0 <= best_i < len(blk_lines):
-                # union bbox of the matched OCR line (pixel coords on page_img)
+            try:
+                # Union bbox of the matched OCR line (pixel coords on page_img)
                 x0 = min(w.bbox[0] for w in blk_lines[best_i].words)
                 y0 = min(w.bbox[1] for w in blk_lines[best_i].words)
                 x1 = max(w.bbox[2] for w in blk_lines[best_i].words)
                 y1 = max(w.bbox[3] for w in blk_lines[best_i].words)
-                is_sel, sconf = _detect_filled_radio(
+                label_bbox = (x0, y0, x1, y1)
+
+                # Your API: radio_selected_near_label(img, label_bbox, search_up_px=..., search_pad_px=...)
+                sel, sconf = radio_selected_near_label(
                     page_img,
-                    (x0, y0, x1, y1),
-                    search_left_px=search_left_px,
-                    corridor_px=corridor_px,
+                    label_bbox,
+                    # prefer YAML-tuned values if provided; else good defaults
+                    search_up_px=radio_search_up_px if radio_search_up_px is not None else 72,
+                    search_pad_px=radio_search_pad_px if radio_search_pad_px is not None else 60,
                 )
-                if is_sel:
+                if sel:
                     selected = True
-                    conf = max(conf, sconf)
+                    conf = max(conf, float(sconf))
+            except Exception as e:
+                logger.debug("cv_radios failed on option '%s': %r", raw, e)
 
         options.append(
             {
                 "text": raw,
-                "bbox": None,  # keep payload stable for now
+                "bbox": None,  # you can populate later from the matched line bbox if needed
                 "selected": bool(selected),
                 "selection_confidence": float(conf),
             }
         )
 
+        _enforce_single_select(options, allow_multi=allow_multi)
+
     return options
+
 
 
 # ------------------------- Public API -------------------------
@@ -416,6 +430,25 @@ def preflight_pdf(pdf_bytes: bytes, cfg: Dict[str, Any]) -> Dict[str, Any]:
         "mean_ocr_conf": ocr.mean_conf,
         "words": len(ocr.words),
     }
+
+def _enforce_single_select(options: List[Dict[str, Any]], allow_multi: bool = False) -> None:
+    """If multiple options are 'selected', keep only the highest confidence (radio group)."""
+    if allow_multi:
+        return
+    if not options:
+        return
+    best_i, best_c = -1, -1.0
+    for i, opt in enumerate(options):
+        if opt.get("selected"):
+            c = float(opt.get("selection_confidence") or 0.0)
+            if c > best_c:
+                best_c = c; best_i = i
+    if best_i >= 0:
+        for i, opt in enumerate(options):
+            if i != best_i:
+                opt["selected"] = False
+                opt["selection_confidence"] = 0.0
+
 
 
 def extract_minimal(pdf_bytes: bytes, cfg: Dict[str, Any]) -> Dict[str, Any]:
@@ -490,12 +523,13 @@ def extract_minimal(pdf_bytes: bytes, cfg: Dict[str, Any]) -> Dict[str, Any]:
             q_text = block_text
             q_bbox = (block_bbox[0], block_bbox[1], block_bbox[2], block_bbox[3], chosen_hit.page)
 
-            # grab the preprocessed page image from OCR (BGR), same coord space as bboxes
             page_img = None
             try:
                 page_img = ocr.page_images[int(chosen_hit.page) - 1]
             except Exception:
                 page_img = None
+            
+            allow_multi = bool(q.get("allow_multi", False))  # default single-choice
 
             options = _parse_options_from_block(
                 block_text,
@@ -505,7 +539,10 @@ def extract_minimal(pdf_bytes: bytes, cfg: Dict[str, Any]) -> Dict[str, Any]:
                 page_img=page_img,
                 page_no=int(chosen_hit.page),
                 corridor_px=int(heur.get("option_mark_corridor_px", 28)),
-                search_left_px=140,  # adjust if your radio dots are further left/right
+                # forward YAML knobs to cv_radios (if present)
+                radio_search_up_px=heur.get("radio_search_up_px"),
+                radio_search_pad_px=heur.get("radio_search_pad_px"),
+                allow_multi=allow_multi,
             )
 
         else:
