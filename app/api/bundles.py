@@ -9,7 +9,7 @@ from app.core.db import get_db
 from app.models.orm import Artifact, Bundle, ArtifactKind, Project
 from app.models.schemas import BundleOut, ExtractedPayload
 from app.services.storage.local_fs import save_bytes
-from app.services.ingest_pdf.extractor import preflight_pdf, extract_pdf
+from app.services.ingest_pdf.extractor import preflight_pages, preflight_pdf, extract_pdf
 
 router = APIRouter(prefix="/bundles", tags=["bundles"])
 
@@ -42,7 +42,7 @@ async def create_bundle_pdf(
 
     # Preflight quickly (page count + vector text) before persisting
     try:
-        pf = preflight_pdf(pdf_bytes)
+        pf = preflight_pages(pdf_bytes)
     except Exception as e:
         raise HTTPException(status_code=400, detail=f"Failed to read PDF: {e}")
 
