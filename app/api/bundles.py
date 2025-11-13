@@ -1,5 +1,6 @@
 # app/api/bundles.py
 from __future__ import annotations
+import logging
 from fastapi import APIRouter, UploadFile, Form, HTTPException, Depends
 from sqlalchemy.orm import Session
 from datetime import datetime
@@ -149,6 +150,7 @@ def run_extraction(bundle_id: int, db: Session = Depends(get_db)):
     pdf_path = bundle.artifact.path
     pdf_bytes = Path(pdf_path).read_bytes()
 
+    logging.info(f"Running extraction for bundle_id={bundle_id} from file={pdf_path}")
     status, mean_conf, payload = extract_pdf(db, project_id, pdf_bytes)
 
     bundle.extracted_json = payload

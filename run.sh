@@ -10,4 +10,4 @@ PORT=${PORT:-8080}
 
 # Start FastAPI app
 echo "🚀 Starting FastAPI server on http://$HOST:$PORT"
-LOG_LEVEL=DEBUG uvicorn app.main:app --host "$HOST" --port "$PORT" --reload
+uvicorn app.main:app --host "$HOST" --port "$PORT" --reload

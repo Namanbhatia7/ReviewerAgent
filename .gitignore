@@ -208,6 +208,7 @@ cython_debug/
 
 # PyPI configuration file
 .pypirc
+launch.json
 
 # Marimo
 marimo/_static/
