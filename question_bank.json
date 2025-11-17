@@ -1,0 +1,7 @@
+[
+  "Does the generated code render a functional application preview without immediate errors? Is the basic visual structure present?",
+  "How would you rate the appropriateness and clarity of the provided Critical User Journey?",
+  "How completely does the application implement the features required or implied by the CUJ (user story)?",
+  "How well did the features required or implied by the CUJ function during your test?",
+  "Overall, how satisfied are you with the generated application based on the prompt?"
+]
